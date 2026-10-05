@@ -9,7 +9,7 @@ Maximum drawdown complements volatility as a risk measure: volatility tells you 
 Requires **Python 3.11+** and Git.
 
 ```bash
-git clone https://github.com/<your-username>/drawdown-tracker.git
+git clone https://github.com/allbane/drawdown-tracker.git
 cd drawdown-tracker
 python -m venv .venv
 source .venv/bin/activate          # Windows (Git Bash): source .venv/Scripts/activate
