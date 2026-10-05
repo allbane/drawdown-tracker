@@ -1,0 +1,20 @@
+# environment
+.venv/
+
+# python caches
+__pycache__/
+*.pyc
+
+# generated + notebooks
+outputs/
+.ipynb_checkpoints/
+
+# os + secrets
+.DS_Store
+.env
+
+# heavy / licensed data: keep large raw dumps local.
+# The small sample in data/raw/prices.csv is committed on purpose
+# so the repo runs from a clean clone.
+data/raw/*
+!data/raw/prices.csv
