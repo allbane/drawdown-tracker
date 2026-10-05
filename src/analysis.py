@@ -17,7 +17,13 @@ import argparse
 from dataclasses import dataclass
 from pathlib import Path
 
+import matplotlib
+
+matplotlib.use("Agg")  # non-interactive backend: write to file, never open a window
+import matplotlib.dates as mdates
+import matplotlib.pyplot as plt
 import pandas as pd
+from matplotlib.ticker import PercentFormatter
 
 # Paths resolve from the repo root, so the script works whatever the current directory.
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -92,6 +98,49 @@ def summarise(df: pd.DataFrame) -> DrawdownStats:
     )
 
 
+def plot(df: pd.DataFrame, stats: DrawdownStats, out_path: Path) -> None:
+    """Two panels: price vs running peak on top, 'underwater' drawdown chart below."""
+    fig, (ax_price, ax_dd) = plt.subplots(
+        2, 1, figsize=(10, 6.5), sharex=True, gridspec_kw={"height_ratios": [2, 1]}
+    )
+
+    # Top: close and running peak, with the worst episode shaded.
+    ax_price.plot(df["date"], df["close"], color="#1D2A4B", linewidth=1.3, label="Close")
+    ax_price.plot(
+        df["date"], df["running_peak"], color="#7CB9E8", linewidth=1.3,
+        linestyle="--", label="Running peak",
+    )
+    episode_end = stats.recovery_date or df["date"].iloc[-1]
+    ax_price.axvspan(stats.peak_date, episode_end, color="#C0392B", alpha=0.08,
+                     label="Max-drawdown episode")
+    ax_price.set_ylabel("Price")
+    ax_price.set_title("Daily close and drawdown from running peak")
+    ax_price.legend(loc="upper left", frameon=False)
+    ax_price.grid(True, alpha=0.3)
+
+    # Bottom: underwater chart with the trough annotated.
+    ax_dd.fill_between(df["date"], df["drawdown"], 0, color="#C0392B", alpha=0.35)
+    ax_dd.plot(df["date"], df["drawdown"], color="#C0392B", linewidth=1)
+    ax_dd.annotate(
+        f"Max drawdown {stats.max_drawdown:.1%}\n{stats.trough_date:%d %b %Y}",
+        xy=(stats.trough_date, stats.max_drawdown),
+        xytext=(45, -18), textcoords="offset points", fontsize=9, va="center",
+        bbox={"boxstyle": "round,pad=0.3", "fc": "white", "ec": "#CCCCCC"},
+        arrowprops={"arrowstyle": "->", "color": "#555555"},
+    )
+    ax_dd.yaxis.set_major_formatter(PercentFormatter(xmax=1, decimals=0))
+    ax_dd.set_ylim(stats.max_drawdown * 1.5, 0.005)
+    ax_dd.set_ylabel("Drawdown")
+    ax_dd.set_xlabel("Date")
+    ax_dd.grid(True, alpha=0.3)
+    ax_dd.xaxis.set_major_formatter(mdates.DateFormatter("%b %Y"))
+
+    fig.tight_layout()
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    fig.savefig(out_path, dpi=120)
+    plt.close(fig)
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Compute and plot the drawdown of a price series.")
     parser.add_argument("--input", type=Path, default=DEFAULT_INPUT,
@@ -108,7 +157,7 @@ def main() -> None:
     metrics = compute_drawdown(prices)
     stats = summarise(metrics)
 
-    args.output.parent.mkdir(parents=True, exist_ok=True)
+    plot(metrics, stats, args.output)
     metrics_path = args.output.with_name("drawdown.csv")
     metrics.to_csv(metrics_path, index=False)
 
@@ -119,6 +168,7 @@ def main() -> None:
     print(f"Max drawdown  : {stats.max_drawdown:.2%}  "
           f"(peak {stats.peak_date:%Y-%m-%d}, trough {stats.trough_date:%Y-%m-%d}, "
           f"recovery {recovery})")
+    print(f"Saved plot    : {args.output}")
     print(f"Saved metrics : {metrics_path}")
 
 
